@@ -14,8 +14,8 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 
 
-DEFAULT_ENV_NAME = "PongNoFrameskip-v4"
-MEAN_REWARD_BOUND = 19
+DEFAULT_ENV_NAME = "PongNoFrameskip-v4" # cartpole anpassen
+MEAN_REWARD_BOUND = 19 # reward anpassen
 
 GAMMA = 0.99
 BATCH_SIZE = 32
@@ -73,7 +73,8 @@ class Agent:
             action = env.action_space.sample()
         else:
             state_a = np.array([self.state], copy=False)
-            state_v = torch.tensor(state_a).to(device)
+
+            state_v = torch.from_numpy(state_a).to(device)
             q_vals_v = net(state_v)
             _, act_v = torch.max(q_vals_v, dim=1)
             action = int(act_v.item())
@@ -103,8 +104,15 @@ def calc_loss(batch, net, tgt_net, device="cpu"):
     rewards_v = torch.tensor(rewards).to(device)
     done_mask = torch.BoolTensor(dones).to(device)
 
+    # gather nimmt aus der Dimension, die wir angeben in unserem Fall 1 die Werte aus dem Index
+    # hier werden die indexe aus actions genommen.
+
+    ## unsqueze muss verwendet werden, um den Tensor in dieselbe Form, wie
+    print('actions value', actions_v)
+    print('shape netz ausgabe', net(states_v))
     state_action_values = net(states_v).gather(
         1, actions_v.unsqueeze(-1)).squeeze(-1)
+    # torch.no_grad(), weil target-Network nicht trainiert wird und somit die Gradienten nicht berechnet werden müssen
     with torch.no_grad():
         next_state_values = tgt_net(next_states_v).max(1)[0]
         next_state_values[done_mask] = 0.0
@@ -118,7 +126,7 @@ def calc_loss(batch, net, tgt_net, device="cpu"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cuda", default=False,
+    parser.add_argument("--cuda", default=True,
                         action="store_true", help="Enable cuda")
     parser.add_argument("--env", default=DEFAULT_ENV_NAME,
                         help="Name of the environment, default=" +

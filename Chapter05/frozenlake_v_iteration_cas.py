@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
 import gym
 import collections
 from tensorboardX import SummaryWriter
+
 
 ENV_NAME = "FrozenLake-v0"
 #ENV_NAME = "FrozenLake8x8-v0"      # uncomment for larger version
@@ -9,27 +9,32 @@ GAMMA = 0.9
 TEST_EPISODES = 20
 
 
-class Agent:
+class Agent():
     def __init__(self):
-        self.env = gym.make(ENV_NAME)
-        self.state = self.env.reset()
-        self.rewards = collections.defaultdict(float)
-        self.transits = collections.defaultdict(
-            collections.Counter)
+        self.env = gym.make(ENV_NAME) # gym Environment initialisieren
+        self.state = self.env.reset() # state initialisieren
+        print('Initialer State ', self.state)
+        self.rewards = collections.defaultdict(float) # key und value des Dictionary sind float Werte
+        self.transits = collections.defaultdict(collections.Counter) # Speichern der Übergänge
         self.values = collections.defaultdict(float)
+        self.reward_count = collections.defaultdict(float)
 
     def play_n_random_steps(self, count):
-        for _ in range(count):
-            action = self.env.action_space.sample()
-            new_state, reward, is_done, _ = self.env.step(action)
+        for i in range(count):
+            action = self.env.action_space.sample() # wähle eine zufällige Action
+            print(f'zufällige Action step: {i}, action {action}')
+            new_state, reward, is_done, _ = self.env.step(action) # Mit der Aktion einen Schritt Ausführen
+            print(f'Step {i} new_state: {new_state}, reward {reward} is_done  {is_done}')
             self.rewards[(self.state, action, new_state)] = reward
+            if reward == 1:
+                print(f'got reward of 1 on step {i}')
+                self.reward_count[(self.state, action, new_state)] += 1
             self.transits[(self.state, action)][new_state] += 1
             self.state = self.env.reset() \
                 if is_done else new_state
 
-    def calc_action_value(self, state, action):
+    def calc_action_value(self,state, action):
         target_counts = self.transits[(state, action)]
-        print(f'target_counts {target_counts}')
         total = sum(target_counts.values())
         action_value = 0.0
         for tgt_state, count in target_counts.items():
@@ -37,6 +42,7 @@ class Agent:
             val = reward + GAMMA * self.values[tgt_state]
             action_value += (count / total) * val
         return action_value
+
 
     def select_action(self, state):
         best_action, best_value = None, None
@@ -70,6 +76,10 @@ class Agent:
             self.values[state] = max(state_values)
 
 
+def filter_for_reward(pair):
+    k , v = pair
+    return v == 1.0
+
 if __name__ == "__main__":
     test_env = gym.make(ENV_NAME)
     agent = Agent()
@@ -79,7 +89,7 @@ if __name__ == "__main__":
     best_reward = 0.0
     while True:
         iter_no += 1
-        agent.play_n_random_steps(100)
+        agent.play_n_random_steps(50000)
         agent.value_iteration()
 
         reward = 0.0
@@ -93,5 +103,7 @@ if __name__ == "__main__":
             best_reward = reward
         if reward > 0.80:
             print("Solved in %d iterations!" % iter_no)
+            print(agent.reward_count)
             break
     writer.close()
+

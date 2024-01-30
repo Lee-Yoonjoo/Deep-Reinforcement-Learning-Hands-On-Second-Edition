@@ -121,8 +121,9 @@ class BufferWrapper(gym.ObservationWrapper):
 
 def make_env(env_name):
     env = gym.make(env_name)
+    env = gym.wrappers.Monitor(env, "recording")
     env = MaxAndSkipEnv(env)
-    env = FireResetEnv(env)
+    #env = FireResetEnv(env)
     env = ProcessFrame84(env)
     env = ImageToPyTorch(env)
     env = BufferWrapper(env, 4)
