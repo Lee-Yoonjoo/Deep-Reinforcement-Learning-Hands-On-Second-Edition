@@ -11,11 +11,12 @@ import torch.nn as nn
 
 from ignite.engine import Engine
 
-from lib import dqn_model, common
+from lib import dnn_model, dqn_model, common
 
 NAME = "03_double"
 STATES_TO_EVALUATE = 1000
 EVAL_EVERY_FRAME = 100
+HIDDEN_SIZE = 256
 
 
 def calc_loss_double_dqn(batch, net, tgt_net, gamma,
@@ -51,15 +52,15 @@ if __name__ == "__main__":
     params = common.HYPERPARAMS['pong']
     parser = argparse.ArgumentParser()
     parser.add_argument("--cuda", default=True, action="store_true", help="Enable cuda")
-    parser.add_argument("--double", default=False, action="store_true", help="Enable double dqn")
+    parser.add_argument("--double", default=True, action="store_true", help="Enable double dqn")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
     env = gym.make(params.env_name)
-    env = ptan.common.wrappers.wrap_dqn(env)
+    #env = ptan.common.wrappers.wrap_dqn(env)
     env.seed(common.SEED)
 
-    net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
+    net = dnn_model.Net(env.observation_space.shape[0], HIDDEN_SIZE,  env.action_space.n).to(device)
 
     tgt_net = ptan.agent.TargetNet(net)
     selector = ptan.actions.EpsilonGreedyActionSelector(epsilon=params.epsilon_start)
@@ -94,6 +95,7 @@ if __name__ == "__main__":
         return {
             "loss": loss_v.item(),
             "epsilon": selector.epsilon,
+            "reward": engine.state.metrics["reward"] if "reward" in engine.state.metrics else 0
         }
 
     engine = Engine(process_batch)
