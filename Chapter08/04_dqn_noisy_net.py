@@ -18,14 +18,14 @@ NOISY_SNR_EVERY_ITERS = 100
 if __name__ == "__main__":
     random.seed(common.SEED)
     torch.manual_seed(common.SEED)
-    params = common.HYPERPARAMS['pong']
+    params = common.HYPERPARAMS['cartpole']
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
+    parser.add_argument("--cuda", default=True, action="store_true", help="Enable cuda")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
     env = gym.make(params.env_name)
-    env = ptan.common.wrappers.wrap_dqn(env)
+    # env = ptan.common.wrappers.wrap_dqn(env)
     env.seed(common.SEED)
 
     net = dqn_extra.NoisyDQN(env.observation_space.shape, env.action_space.n).to(device)
@@ -39,6 +39,8 @@ if __name__ == "__main__":
     buffer = ptan.experience.ExperienceReplayBuffer(
         exp_source, buffer_size=params.replay_size)
     optimizer = optim.Adam(net.parameters(), lr=params.learning_rate)
+
+    
 
     def process_batch(engine, batch):
         optimizer.zero_grad()

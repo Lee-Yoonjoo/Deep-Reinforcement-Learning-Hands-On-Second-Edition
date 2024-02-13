@@ -12,7 +12,7 @@ from ignite.engine import Engine
 
 from lib import common, dqn_extra
 
-NAME = "06_dueling"
+NAME = "06_dueling_with_noise"
 STATES_TO_EVALUATE = 1000
 EVAL_EVERY_FRAME = 100
 
@@ -28,14 +28,14 @@ def evaluate_states(states, net, device, engine):
 if __name__ == "__main__":
     random.seed(common.SEED)
     torch.manual_seed(common.SEED)
-    params = common.HYPERPARAMS['pong']
+    params = common.HYPERPARAMS['cartpole']
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
+    parser.add_argument("--cuda", default=True, action="store_true", help="Enable cuda")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
     env = gym.make(params.env_name)
-    env = ptan.common.wrappers.wrap_dqn(env)
+    # env = ptan.common.wrappers.wrap_dqn(env)
     env.seed(common.SEED)
 
     net = dqn_extra.DuelingDQN(env.observation_space.shape, env.action_space.n).to(device)
