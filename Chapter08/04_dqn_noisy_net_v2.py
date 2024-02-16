@@ -11,7 +11,7 @@ from ignite.engine import Engine
 
 from lib import common, dqn_extra
 
-NAME = "04_noisy_versuch_2"
+NAME = "04_noisy_versuch_andere_learning_rate"
 NOISY_SNR_EVERY_ITERS = 100
 
 
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     # env = ptan.common.wrappers.wrap_dqn(env)
     env.seed(common.SEED)
 
-    net = dqn_extra.NoisyDQN(env.observation_space.shape, env.action_space.n).to(device)
+    net = dqn_extra.NoisyV2DQN(env.observation_space.shape, env.action_space.n).to(device)
 
     tgt_net = ptan.agent.TargetNet(net)
     selector = ptan.actions.ArgmaxActionSelector()

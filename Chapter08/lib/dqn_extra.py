@@ -86,6 +86,43 @@ class NoisyFactorizedLinear(nn.Linear):
         v = self.weight + self.sigma_weight * noise_v
         return F.linear(input, v, bias)
 
+class NoisyV2DQN(nn.Module):
+    def __init__(self, input_shape, n_actions):
+        super(NoisyV2DQN, self).__init__()
+
+        self.fc = nn.Sequential(
+            nn.Linear(input_shape[0], 128, dtype=torch.float64),
+            nn.ReLU(),
+           # nn.Linear(128, 128),
+           # nn.ReLU(),
+           # nn.Linear(128, 128),
+           # nn.ReLU()
+        )
+
+        self.noisy_layers = [
+           # NoisyLinear(128, 128),
+          #  NoisyLinear(128, 128),
+            NoisyLinear(128, n_actions)
+        ]
+        self.noisy = nn.Sequential(
+            self.noisy_layers[0],
+            nn.ReLU(),
+           # self.noisy_layers[1],
+           # nn.ReLU(),
+           # self.noisy_layers[2]
+        )
+
+
+    def forward(self, x):
+      x = self.fc(x)
+      return self.noisy(x)
+
+    def noisy_layers_sigma_snr(self):
+        return [
+            ((layer.weight ** 2).mean().sqrt() / (layer.sigma_weight ** 2).mean().sqrt()).item()
+            for layer in self.noisy_layers
+        ]
+
 
 class NoisyDQN(nn.Module):
     def __init__(self, input_shape, n_actions):
@@ -172,6 +209,46 @@ class PrioReplayBuffer:
         for idx, prio in zip(batch_indices,
                              batch_priorities):
             self.priorities[idx] = prio
+
+
+class DuelingOnlyDQN(nn.Module):
+    def __init__(self, input_shape, n_actions):
+        super(DuelingOnlyDQN, self).__init__()
+
+        self.fc = nn.Sequential(
+            nn.Linear(input_shape[0], 128, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(128, n_actions, dtype=torch.float64),
+            nn.ReLU(),
+        )
+
+        fc_out_size = self._get_fc_out(input_shape)
+
+        self.fc_adv = nn.Sequential(
+            nn.Linear(fc_out_size, 256, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(256, n_actions, dtype=torch.float64)
+        )
+
+        self.fc_val = nn.Sequential(
+            nn.Linear(fc_out_size, 256, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(256, 1, dtype=torch.float64)
+        )
+
+
+    def _get_fc_out(self, shape):
+        o = self.fc(torch.zeros(1, *shape, dtype=torch.float64))
+        return int(np.prod(o.size()))
+
+    def forward(self, x):
+        adv, val = self.adv_val(x)
+        return val + (adv - adv.mean(dim=1, keepdim=True, dtype=torch.float64))
+
+    def adv_val(self, x):
+        fc_out = self.fc(x).view(x.size()[0], -1)
+        return self.fc_adv(fc_out), self.fc_val(fc_out)
+
 
 
 class DuelingDQN(nn.Module):

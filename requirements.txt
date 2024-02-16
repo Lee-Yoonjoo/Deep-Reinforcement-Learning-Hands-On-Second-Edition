@@ -1,4 +1,4 @@
-atari-py==0.2.6
+atari-py==0.2.9
 gym==0.17.3
 numpy
 opencv-python==4.4.0.46
