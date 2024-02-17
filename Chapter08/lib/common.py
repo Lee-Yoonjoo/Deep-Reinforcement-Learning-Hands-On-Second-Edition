@@ -12,6 +12,7 @@ from ignite.engine import Engine
 from ignite.metrics import RunningAverage
 from ignite.contrib.handlers import tensorboard_logger as tb_logger
 
+from Chapter08.lib.dqn_extra import DuelingDQN
 
 SEED = 123
 
@@ -162,7 +163,7 @@ def calc_values_of_states(states, net, device="cpu"):
 
 
 def setup_ignite(engine: Engine, params: SimpleNamespace,
-                 exp_source, run_name: str,
+                 exp_source, run_name: str, model: DuelingDQN,
                  extra_metrics: Iterable[str] = ()):
     # get rid of missing metrics warning
     warnings.simplefilter("ignore", category=UserWarning)
@@ -171,6 +172,8 @@ def setup_ignite(engine: Engine, params: SimpleNamespace,
         exp_source, bound_avg_reward=params.stop_reward)
     handler.attach(engine)
     ptan_ignite.EpisodeFPSHandler().attach(engine)
+
+    episode_reward = 0
 
     @engine.on(ptan_ignite.EpisodeEvents.EPISODE_COMPLETED)
     def episode_completed(trainer: Engine):
@@ -181,6 +184,8 @@ def setup_ignite(engine: Engine, params: SimpleNamespace,
             trainer.state.episode_steps,
             trainer.state.metrics.get('avg_fps', 0),
             timedelta(seconds=int(passed))))
+        if trainer.state.episode_reward > episode_reward:
+            torch.save(model.state_dict(), 'models')
 
     @engine.on(ptan_ignite.EpisodeEvents.BOUND_REWARD_REACHED)
     def game_solved(trainer: Engine):
@@ -190,6 +195,8 @@ def setup_ignite(engine: Engine, params: SimpleNamespace,
             timedelta(seconds=int(passed)),
             trainer.state.episode, trainer.state.iteration))
         trainer.should_terminate = True
+
+
 
     now = datetime.now().isoformat(timespec='minutes').replace(':', '')
     logdir = f"runs/{now}-{params.run_name}-{run_name}"
