@@ -1,0 +1,8 @@
+.DS_Store
+.idea
+runs
+__pycache__
+*.dat
+
+**/recording*
+lapan_dqn/*
