@@ -18,17 +18,17 @@ DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 
 class NoisyLinear(nn.Linear):
     def __init__(self, in_features, out_features,
-                 sigma_init=0.017, bias=True):
+                 sigma_init=0.02, bias=True):
         super(NoisyLinear, self).__init__(
             in_features, out_features, bias=bias)
-        w = torch.full((out_features, in_features), sigma_init)
+        w = torch.full((out_features, in_features), sigma_init, dtype=torch.float64)
         self.sigma_weight = nn.Parameter(w)
-        z = torch.zeros(out_features, in_features)
+        z = torch.zeros(out_features, in_features, dtype=torch.float64)
         self.register_buffer("epsilon_weight", z)
         if bias:
-            w = torch.full((out_features,), sigma_init)
+            w = torch.full((out_features,), sigma_init, dtype=torch.float64)
             self.sigma_bias = nn.Parameter(w)
-            z = torch.zeros(out_features)
+            z = torch.zeros(out_features, dtype=torch.float64)
             self.register_buffer("epsilon_bias", z)
         self.reset_parameters()
 
@@ -56,7 +56,7 @@ class NoisyFactorizedLinear(nn.Linear):
     N.B. nn.Linear already initializes weight and bias to
     """
     def __init__(self, in_features, out_features,
-                 sigma_zero=0.4, bias=True):
+                 sigma_zero=0.02, bias=True):
         super(NoisyFactorizedLinear, self).__init__(
             in_features, out_features, bias=bias)
         sigma_init = sigma_zero / math.sqrt(in_features)
@@ -86,39 +86,36 @@ class NoisyFactorizedLinear(nn.Linear):
         v = self.weight + self.sigma_weight * noise_v
         return F.linear(input, v, bias)
 
-
-class NoisyDQN(nn.Module):
+class NoisyV2DQN(nn.Module):
     def __init__(self, input_shape, n_actions):
-        super(NoisyDQN, self).__init__()
+        super(NoisyV2DQN, self).__init__()
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
+        self.fc = nn.Sequential(
+            nn.Linear(input_shape[0], 128, dtype=torch.float64),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
+           # nn.Linear(128, 128),
+           # nn.ReLU(),
+           # nn.Linear(128, 128),
+           # nn.ReLU()
         )
 
-        conv_out_size = self._get_conv_out(input_shape)
         self.noisy_layers = [
-            NoisyLinear(conv_out_size, 512),
-            NoisyLinear(512, n_actions)
+           # NoisyLinear(128, 128),
+          #  NoisyLinear(128, 128),
+            NoisyLinear(128, n_actions)
         ]
-        self.fc = nn.Sequential(
+        self.noisy = nn.Sequential(
             self.noisy_layers[0],
             nn.ReLU(),
-            self.noisy_layers[1]
+           # self.noisy_layers[1],
+           # nn.ReLU(),
+           # self.noisy_layers[2]
         )
 
-    def _get_conv_out(self, shape):
-        o = self.conv(torch.zeros(1, *shape))
-        return int(np.prod(o.size()))
 
     def forward(self, x):
-        fx = x.float() / 256
-        conv_out = self.conv(fx).view(fx.size()[0], -1)
-        return self.fc(conv_out)
+      x = self.fc(x)
+      return self.noisy(x)
 
     def noisy_layers_sigma_snr(self):
         return [
@@ -126,6 +123,37 @@ class NoisyDQN(nn.Module):
             for layer in self.noisy_layers
         ]
 
+
+class NoisyDQN(nn.Module):
+    def __init__(self, input_shape, n_actions):
+        super(NoisyDQN, self).__init__()
+
+        self.fc = nn.Sequential(
+            nn.Linear(input_shape[0], 128, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(128, 128, dtype=torch.float64),
+            nn.ReLU()
+        )
+
+        self.noisy_layers = [
+            NoisyLinear(128, 128),
+            NoisyLinear(128, n_actions)
+        ]
+        self.noisy = nn.Sequential(
+            self.noisy_layers[0],
+            nn.ReLU(),
+            self.noisy_layers[1]
+        )
+
+    def forward(self, x):
+      x = self.fc(x)
+      return self.noisy(x)
+
+    def noisy_layers_sigma_snr(self):
+        return [
+            ((layer.weight ** 2).mean().sqrt() / (layer.sigma_weight ** 2).mean().sqrt()).item()
+            for layer in self.noisy_layers
+        ]
 
 class PrioReplayBuffer:
     def __init__(self, exp_source, buf_size, prob_alpha=0.6):
@@ -135,7 +163,7 @@ class PrioReplayBuffer:
         self.pos = 0
         self.buffer = []
         self.priorities = np.zeros(
-            (buf_size, ), dtype=np.float32)
+            (buf_size, ), dtype=np.float64)
         self.beta = BETA_START
 
     def update_beta(self, idx):
@@ -174,7 +202,7 @@ class PrioReplayBuffer:
         weights = (total * probs[indices]) ** (-self.beta)
         weights /= weights.max()
         return samples, indices, \
-               np.array(weights, dtype=np.float32)
+               np.array(weights, dtype=np.float64)
 
     def update_priorities(self, batch_indices,
                           batch_priorities):
@@ -183,44 +211,93 @@ class PrioReplayBuffer:
             self.priorities[idx] = prio
 
 
-class DuelingDQN(nn.Module):
+class DuelingOnlyDQN(nn.Module):
     def __init__(self, input_shape, n_actions):
-        super(DuelingDQN, self).__init__()
+        super(DuelingOnlyDQN, self).__init__()
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(input_shape[0], 32,
-                      kernel_size=8, stride=4),
+        self.fc = nn.Sequential(
+            nn.Linear(input_shape[0], 128, dtype=torch.float64),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.Linear(128, n_actions, dtype=torch.float64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
         )
 
-        conv_out_size = self._get_conv_out(input_shape)
+        fc_out_size = self._get_fc_out(input_shape)
+
         self.fc_adv = nn.Sequential(
-            nn.Linear(conv_out_size, 256),
+            nn.Linear(fc_out_size, 256, dtype=torch.float64),
             nn.ReLU(),
-            nn.Linear(256, n_actions)
-        )
-        self.fc_val = nn.Sequential(
-            nn.Linear(conv_out_size, 256),
-            nn.ReLU(),
-            nn.Linear(256, 1)
+            nn.Linear(256, n_actions, dtype=torch.float64)
         )
 
-    def _get_conv_out(self, shape):
-        o = self.conv(torch.zeros(1, *shape))
+        self.fc_val = nn.Sequential(
+            nn.Linear(fc_out_size, 256, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(256, 1, dtype=torch.float64)
+        )
+
+
+    def _get_fc_out(self, shape):
+        o = self.fc(torch.zeros(1, *shape, dtype=torch.float64))
         return int(np.prod(o.size()))
 
     def forward(self, x):
         adv, val = self.adv_val(x)
-        return val + (adv - adv.mean(dim=1, keepdim=True))
+        return val + (adv - adv.mean(dim=1, keepdim=True, dtype=torch.float64))
 
     def adv_val(self, x):
-        fx = x.float() / 256
-        conv_out = self.conv(fx).view(fx.size()[0], -1)
-        return self.fc_adv(conv_out), self.fc_val(conv_out)
+        fc_out = self.fc(x).view(x.size()[0], -1)
+        return self.fc_adv(fc_out), self.fc_val(fc_out)
+
+
+
+class DuelingDQN(nn.Module):
+    def __init__(self, input_shape, n_actions):
+        super(DuelingDQN, self).__init__()
+
+        self.fc = nn.Sequential(
+            nn.Linear(input_shape[0], 128, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(128, n_actions, dtype=torch.float64),
+            nn.ReLU(),
+        )
+
+        fc_out_size = self._get_fc_out(input_shape)
+
+        self.fc_adv = nn.Sequential(
+            nn.Linear(fc_out_size, 256, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(256, n_actions, dtype=torch.float64)
+        )
+
+        self.fc_val = nn.Sequential(
+            nn.Linear(fc_out_size, 256, dtype=torch.float64),
+            nn.ReLU(),
+            nn.Linear(256, 1, dtype=torch.float64)
+        )
+
+        self.noisy_layers = [
+            NoisyLinear(fc_out_size, 128),
+            NoisyLinear(128, n_actions)
+        ]
+        self.noisy = nn.Sequential(
+            self.noisy_layers[0],
+            nn.ReLU(),
+            self.noisy_layers[1]
+        )
+
+    def _get_fc_out(self, shape):
+        o = self.fc(torch.zeros(1, *shape, dtype=torch.float64))
+        return int(np.prod(o.size()))
+
+    def forward(self, x):
+        adv, val = self.adv_val(x)
+        adv = self.noisy(adv)
+        return val + (adv - adv.mean(dim=1, keepdim=True, dtype=torch.float64))
+
+    def adv_val(self, x):
+        fc_out = self.fc(x).view(x.size()[0], -1)
+        return self.fc_adv(fc_out), self.fc_val(fc_out)
 
 
 class DistributionalDQN(nn.Module):
@@ -279,7 +356,7 @@ def distr_projection(next_distr, rewards, dones, gamma):
     """
     batch_size = len(rewards)
     proj_distr = np.zeros((batch_size, N_ATOMS),
-                          dtype=np.float32)
+                          dtype=np.float64)
     delta_z = (Vmax - Vmin) / (N_ATOMS - 1)
     for atom in range(N_ATOMS):
         v = rewards + (Vmin + atom * delta_z) * gamma
