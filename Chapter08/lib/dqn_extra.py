@@ -299,6 +299,12 @@ class DuelingDQN(nn.Module):
         fc_out = self.fc(x).view(x.size()[0], -1)
         return self.fc_adv(fc_out), self.fc_val(fc_out)
 
+    def noisy_layers_sigma_snr(self):
+        return [
+            ((layer.weight ** 2).mean().sqrt() / (layer.sigma_weight ** 2).mean().sqrt()).item()
+            for layer in self.noisy_layers
+        ]
+
 
 class DistributionalDQN(nn.Module):
     def __init__(self, input_shape, n_actions):

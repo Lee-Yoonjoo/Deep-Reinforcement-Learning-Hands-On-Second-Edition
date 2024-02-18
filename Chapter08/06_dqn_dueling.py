@@ -10,6 +10,7 @@ import torch.optim as optim
 
 from ignite.engine import Engine
 
+from Chapter08.lib.dqn_extra import DuelingDQN
 from lib import common, dqn_extra
 
 NAME = "06_dueling_with_noise"
@@ -18,11 +19,14 @@ EVAL_EVERY_FRAME = 100
 
 
 @torch.no_grad()
-def evaluate_states(states, net, device, engine):
+def evaluate_states(states, net: DuelingDQN, device, engine):
     s_v = torch.tensor(states).to(device)
     adv, val = net.adv_val(s_v)
     engine.state.metrics['adv'] = adv.mean().item()
     engine.state.metrics['val'] = val.mean().item()
+    for layer_idx, sigma_l2 in enumerate(net.noisy_layers_sigma_snr()):
+        print(f'index {layer_idx} snr {sigma_l2}')
+        engine.state.metrics[f'snr_{layer_idx + 1}'] = sigma_l2
 
 
 if __name__ == "__main__":
@@ -74,5 +78,5 @@ if __name__ == "__main__":
         }
 
     engine = Engine(process_batch)
-    common.setup_ignite(engine, params, exp_source, NAME, net, extra_metrics=('adv', 'val'))
+    common.setup_ignite(engine, params, exp_source, NAME, net, extra_metrics=('adv', 'val', 'snr_1', 'snr_2'))
     engine.run(common.batch_generator(buffer, params.replay_initial, params.batch_size))
