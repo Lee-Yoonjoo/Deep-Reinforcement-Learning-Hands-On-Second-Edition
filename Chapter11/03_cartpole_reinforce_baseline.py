@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 GAMMA = 0.99
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.001
 EPISODES_TO_TRAIN = 4
 
 
@@ -19,7 +19,9 @@ class PGN(nn.Module):
         super(PGN, self).__init__()
 
         self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
+            nn.Linear(input_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
             nn.ReLU(),
             nn.Linear(128, n_actions)
         )
@@ -41,8 +43,8 @@ def calc_qvals(rewards):
 
 
 if __name__ == "__main__":
-    env = gym.make("CartPole-v0")
-    writer = SummaryWriter(comment="-cartpole-reinforce-baseline")
+    env = gym.make("LunarLander-v2")
+    writer = SummaryWriter(comment="-lunar-reinforce-baseline")
 
     net = PGN(env.observation_space.shape[0], env.action_space.n)
     print(net)
@@ -99,7 +101,9 @@ if __name__ == "__main__":
         batch_qvals_v = torch.FloatTensor(batch_qvals)
 
         optimizer.zero_grad()
+        # erstellen von policies (poli
         logits_v = net(states_v)
+        #
         log_prob_v = F.log_softmax(logits_v, dim=1)
         log_prob_actions_v = batch_qvals_v * log_prob_v[range(len(batch_states)), batch_actions_t]
         loss_v = -log_prob_actions_v.mean()
