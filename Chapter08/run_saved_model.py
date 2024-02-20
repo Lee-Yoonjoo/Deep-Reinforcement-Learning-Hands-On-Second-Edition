@@ -1,7 +1,6 @@
 import time
 
 import gym
-import numpy
 import numpy as np
 import torch
 from torch import nn

@@ -17,7 +17,6 @@ NAME = "06_dueling_with_noise"
 STATES_TO_EVALUATE = 1000
 EVAL_EVERY_FRAME = 100
 
-
 @torch.no_grad()
 def evaluate_states(states, net: DuelingDQN, device, engine):
     s_v = torch.tensor(states).to(device)
