@@ -18,6 +18,9 @@ COPY requirements.txt requirements.txt
 
 RUN pip install --default-timeout=300 -r requirements.txt
 
+RUN pip install swig
+RUN pip install box2d-py
+
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 
 ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python

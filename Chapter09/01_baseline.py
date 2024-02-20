@@ -33,14 +33,14 @@ if __name__ == "__main__":
 
     random.seed(common.SEED)
     torch.manual_seed(common.SEED)
-    params = common.HYPERPARAMS['pong']
+    params = common.HYPERPARAMS['lunar']
     parser = argparse.ArgumentParser()
     parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
     env = gym.make(params.env_name)
-    env = ptan.common.wrappers.wrap_dqn(env)
+    # env = ptan.common.wrappers.wrap_dqn(env)
     env.seed(common.SEED)
 
     net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
