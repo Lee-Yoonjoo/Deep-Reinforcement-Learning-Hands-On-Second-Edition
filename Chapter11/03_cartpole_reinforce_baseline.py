@@ -12,6 +12,7 @@ import torch.optim as optim
 GAMMA = 0.99
 LEARNING_RATE = 0.001
 EPISODES_TO_TRAIN = 4
+ENTROPY_BETA= 0.01
 
 
 class PGN(nn.Module):
@@ -103,10 +104,17 @@ if __name__ == "__main__":
         optimizer.zero_grad()
         # erstellen von policies (poli
         logits_v = net(states_v)
-        #
+
         log_prob_v = F.log_softmax(logits_v, dim=1)
         log_prob_actions_v = batch_qvals_v * log_prob_v[range(len(batch_states)), batch_actions_t]
-        loss_v = -log_prob_actions_v.mean()
+        loss_policy_v = -log_prob_actions_v.mean()
+
+        prob_v = F.softmax(logits_v, dim=1)
+        entropy_v = -(prob_v * log_prob_v).sum(dim=1).mean()
+        # Bremse für die Streuung
+        entropy_loss_v = -ENTROPY_BETA * entropy_v
+        loss_v = loss_policy_v + entropy_loss_v
+
 
         loss_v.backward()
         optimizer.step()

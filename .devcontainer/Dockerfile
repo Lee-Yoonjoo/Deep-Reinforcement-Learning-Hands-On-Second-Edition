@@ -18,6 +18,7 @@ COPY requirements.txt requirements.txt
 
 RUN pip install --default-timeout=300 -r requirements.txt
 
+
 RUN pip install swig
 RUN pip install box2d-py
 
